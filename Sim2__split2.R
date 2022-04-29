@@ -7,7 +7,7 @@ K     = 100 #number of stages in trial
 S     = 2
 T     = 3
 
-nk_.g   = 150
+nk_.g   = 80
 Nx.g    = c(501, 1279, 324) + c(1034, 2604, 683)
 Px.g    = Nx.g/sum(Nx.g)
 nk_.g   = round(nk_.g*Px.g) #patients per stage
@@ -63,9 +63,11 @@ mle.g[1,j,h]       = sum(Y.g[1,j,h])/(nk.g[1,j,h])
 
 for(i in 2:K){
 
-nk.g[i, 1,] = round(nk_.g * (1-rand_ratio.g))
-nk.g[i, 2,] = round(nk_.g * rand_ratio.g)
 for (h in 1:T){
+    
+nk.g[i, 1,h] = rbinom(1,nk_.g[h], 1-rand_ratio.g[h])
+nk.g[i, 2,h] = rbinom(1,nk_.g[h], rand_ratio.g[h])
+
 for(j in 1:S){
   y.g = rbinom(1, round(nk.g[i,j,h]), Py.g[h,j])
 
@@ -78,8 +80,11 @@ mle.g[i,j,h]       = sum(Y.g[1:i,j,h])/sum(nk.g[1:i,j,h])
 
 }
 
-X1 <- rbeta(100, PostAlpha.g[i, 1,h], PostBeta.g[i, 1,h])
-X2 <- rbeta(100, PostAlpha.g[i, 2,h], PostBeta.g[i, 2,h])
+if (i > 28){
+    
+if (i %% 7 == 0){
+X1 <- rbeta(100, PostAlpha.g[i-28, 1,h], PostBeta.g[i-28, 1,h])
+X2 <- rbeta(100, PostAlpha.g[i-28, 2,h], PostBeta.g[i-28, 2,h])
 theta <- length(X1[X1>=X2])/100
 thetas.g[n,i,h] <- theta
 k = i/(K)
@@ -92,6 +97,9 @@ if (rand_ratio.g[h]>UPPER_LIMIT){
 }
 if (rand_ratio.g[h]<LOWER_LIMIT){
   rand_ratio.g[h] = LOWER_LIMIT
+}
+
+}
 }
 
 if (i %% 10 == 0){
@@ -117,31 +125,39 @@ sum(Ya.g)/reps
 
 nk_avg.g = array(dim=c(K,S,T))
 Y_avg.g  = array(dim=c(K,S,T))
+nk_sd.g = array(dim=c(K,S,T))
+Y_sd.g = array(dim=c(K,S,T))
 
 for (h in 1:T){
 for (j in 1:S){
   nk_avg.g[,j,h] = apply(nka.g[,j,h,], 1, mean)
   Y_avg.g[,j,h]  = apply(Ya.g[,j,h,], 1, mean, na.rm=T)
+  nk_sd.g[,j,h] = apply(nka.g[,j,h,], 1, sd)
+  Y_sd.g[,j,h] = apply(Ya.g[,j,h,], 1, sd, na.rm=T)
 }
 }
 
 
 for (h in 1:T){
-print(sum(nk_avg.g[,1,h]))
-print(sum(nk_avg.g[,2,h]))
+print(sum(nk_avg.g[1:80,1,h]))
+print(sum(nk_avg.g[1:80,2,h]))
 }
 
 sum(nk_avg.g)
 
 for (h in 1:T){
-  print(sum(Y_avg.g[,1,h]))
-  print(sum(Y_avg.g[,2,h]))
+  print(sum(Y_avg.g[1:80,1,h]))
+  print(sum(Y_avg.g[1:80,2,h]))
 }
 
 
 #mortality at n=6450
-sum(nk_avg.g[1:43,,])
-sum(Y_avg.g[1:43,,])
+sum(nk_avg.g[1:80,,])
+sum(Y_avg.g[1:80,,])
+
+sd(apply(Ya.g[1:80, 1,1, ] + Ya.g[1:80, 2,1, ] +
+         Ya.g[1:80, 1,2, ] + Ya.g[1:80, 2,2, ] +
+         Ya.g[1:80, 1,3, ] + Ya.g[1:80, 2,3, ], 2, sum))/(reps ** 0.5)
 
 
 
@@ -157,16 +173,27 @@ h=1
 c_vector = c('red', 'blue', 'brown')
 
 power_avg = apply(conf_sup.h[,h,]<0.05, 1, mean)
+power_avg = c(0, power_avg)
 plot(power_avg, xlab='Trial Progress (%)', ylab = 'Power', ylim= c(0, 1), xaxt = 'n')
 
 for (h in 1:T){
   power_avg = apply(conf_sup.g[,h,]<0.05, 1, mean)
-  points(power_avg, lwd=2)
-  lines(power_avg,lty='dashed', col=c_vector[h], lwd=3)
-  
-  power_avg = apply(conf_sup.h[,h,]<0.05, 1, mean)
+  power_avg = c(0, power_avg)
   points(power_avg, lwd=2)
   lines(power_avg, col=c_vector[h], lwd=3)
+  power_err = apply(conf_sup.g[,h,]<0.05, 1, sd)/(reps ** 0.5)
+  arrows(2:11, power_avg[2:11] - power_err,
+         y1 = power_avg[2:11] + power_err,
+         code=3, angle=90, lty=9, col=c_vector[h], lwd=2)
+  
+  power_avg = apply(conf_sup.h[,h,]<0.05, 1, mean)
+  power_avg = c(0, power_avg)
+  points(power_avg, lwd=2)
+  lines(power_avg, lty='dashed', col=c_vector[h], lwd=3)
+  power_err = apply(conf_sup.h[,h,]<0.05, 1, sd)/(reps ** 0.5)
+  arrows(2:11, power_avg[2:11] - power_err,
+         y1 = power_avg[2:11] + power_err,
+         code=3, angle=90, lty=8, col=c_vector[h], lwd=2)
   
   
   
@@ -176,12 +203,14 @@ for (h in 1:T){
 
 legend("bottomright",legend = c('subgroup iii', 'subgroup ii', 'subgroup i'),col = c_vector[c(3,2,1)], lwd=2)
 legend('bottom', legend=c(expression('T'[s]), expression('RMC'[s])), lty = c('solid','dashed'))
+legend('topleft', legend=c(expression('T'[s]*' error'), expression('RMC'[s]*' error')), lty = c(8,9))
 
-axis(1, 1:10, 1:10*10)
+
+
+axis(1, seq(1,11,2), labels = seq(0, 125,25))
 
 abline(h=0.8, lty=4)
 abline(h=0.9, lty=4)
-abline(v=rec.prop, lty='dashed')
 
 
 
@@ -189,24 +218,29 @@ abline(v=rec.prop, lty='dashed')
 
 
 c_vector = c('red', 'blue', 'brown')
-plot(nk_avg.g[1:10*10,2,1]/nk_.g[1]*100, ylim = c(0,100), col='red', xlab= 'Trial progress (%)', 
-     ylab='Proportion of patients allocated dexamethasone(%)', type = 'b', xaxt='n')
-axis(1, labels = 1:10*10, at = 1:10)
+plot(nk_avg.g[c(2, 1:10*10),2,1]/nk_.g[1]*100, ylim = c(0,120), col='red', xlab= 'Trial progress (%)', 
+     ylab='Proportion of patients allocated dexamethasone(%)', type = 'b', axes=FALSE)
+axis(1, seq(1,11,2), labels = seq(0, 125,25))
+axis(2, seq(0, 100, 25), labels = seq(0, 100, 25))
+
 
 for (h in 1:T){
-#plot(nk_avg[1:10*10,2,h], ylim = c(0,nk_[h]), col='red', xlab= 'trial progress (%)', 
-#     ylab='number of patients')
-points(nk_avg.g[1:10*10,2,h]/nk_.g[h]*100, col=c_vector[h], type = 'b', lwd=3)
-#legend("bottom",legend = c('no treatment', 'dexamethasone'),col = c("red", "blue"), lwd=3)
-#plot(nk_avg2[1:10*10,2,h], ylim = c(0,nk_[h]), col='red', xlab= 'trial progress (%)', 
-#     ylab='number of patients')
-points(nk_avg.h[1:10*10,2,h]/nk_.h[h]*100, col=c_vector[h], type = 'b', lty = 'dashed', lwd=3)
-#legend("bottom",legend = c('no treatment', 'dexamethasone'),col = c("red", "blue"), lwd=4)
+points(nk_avg.g[c(2, 1:10*10),2,h]/nk_.g[h]*100, col=c_vector[h], type = 'b', lwd=3)
+points(nk_avg.h[c(2, 1:10*10),2,h]/nk_.g[h]*100, col=c_vector[h], type = 'b', lty = 'dashed', lwd=3)
+arrows(1:11 - 0.05, (nk_avg.g[c(2, 1:10*10),2,h]- nk_sd.g[c(2, 1:10*10),2,h])/nk_.g[h]*100,
+       y1 = (nk_avg.g[c(2, 1:10*10),2,h] + nk_sd.g[c(2, 1:10*10),2,h])/nk_.g[h]*100,
+       code=3, angle=90, lty=8, col=c_vector[h], lwd=2)
+arrows(1:11 + 0.05, (nk_avg.h[c(2, 1:10*10),2,h]- nk_sd.h[c(2, 1:10*10),2,h])/nk_.g[h]*100,
+       y1 = (nk_avg.h[c(2, 1:10*10),2,h] + nk_sd.h[c(2, 1:10*10),2,h])/nk_.g[h]*100,
+       code=3, angle=90, lty=9, col=c_vector[h], lwd=2)
 }
 
-legend("right",legend = c('subgroup iii', 'subgroup ii','subgroup i'),col = c_vector[c(3,2,1)], lwd=4)
-legend('bottomleft', legend = c(expression('T'[s]), expression('RMC'[s])), lwd =3, lty = c('solid','dashed'))
-abline(v=rec.prop, lty='dashed')
+
+legend("bottomleft",legend = c('subgroup iii', 'subgroup ii','subgroup i'),col = c_vector[c(3,2,1)], lwd=4)
+legend('bottom', legend = c(expression('T'[s]), expression('RMC'[s])), lwd =3, lty = c('solid','dashed'))
+legend('topleft', legend=c(expression('T'[s]*' SD'), expression('RMC'[s]*' SD')), lty = c(8,9))
+abline(v=4.4, lty='dashed')
+
 
 sum(Ya)/reps
 #Y_avg = matrix(nrow=K, ncol=S)
@@ -263,7 +297,16 @@ for (h in 1:T){
 }
 
 
-#treatment effect bias at n=6450
+
+#mean squared error
+true_t_effect = Py.g[,1] - Py.g[,2]
+mse.g = apply((mle_a.g[43,1,,] - mle_a.g[43,2,,] - true_t_effect)**2, 1, mean)
+mse.g
+
+
+
+
+#treatment effect bias at n=6400
 
 mle_t_avg = vector(length=3)
 mle_t_sd = vector(length=3)
@@ -271,17 +314,17 @@ mle_t_sd = vector(length=3)
 treatment_effect = Py.g[,1] - Py.g[,2]
 
 for (h in 1:T){
-  mle_t_avg[h] = mean(((mle_a.g[43,1, h,] - mle_a.g[43,2,h,])- treatment_effect[h])/treatment_effect[h])
-  mle_t_sd[h] = sd(((mle_a.g[43,1, h,] - mle_a.g[43,2,h,])- treatment_effect[h])/treatment_effect[h])
+  mle_t_avg[h] = mean(((mle_a.g[80,1, h,] - mle_a.g[80,2,h,])- treatment_effect[h])/treatment_effect[h])
+  mle_t_sd[h] = sd(((mle_a.g[80,1, h,] - mle_a.g[80,2,h,])- treatment_effect[h])/treatment_effect[h])
 }
 
+#mean(mle_a.g)
+#sample_size = round(6400*Px.g)
 
-sample_size = round(6450*Px.g)
 
-
-upper = mle_t_avg + 1.96*mle_t_sd/sqrt(sample_size)
+upper = mle_t_avg + 1.96*mle_t_sd/sqrt(1000)
 mid = mle_t_avg
-lower = mle_t_avg - 1.96*mle_t_sd/sqrt(sample_size)
+lower = mle_t_avg - 1.96*mle_t_sd/sqrt(1000)
 
 
 for (h in 1:T){

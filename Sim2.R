@@ -8,7 +8,7 @@ S     = 2
 T     = 3
 
 
-nk_.c  = 150 #patients per stage
+nk_.c  = 80 #patients per stage
 rand_ratio.c  = 0.5
 Nx.c   = c(501, 1279, 324) + c(1034, 2604, 683)
 Px.c   = Nx.c/sum(Nx.c)
@@ -46,7 +46,7 @@ conf_sup.c <- matrix(nrow=K/10, ncol=reps)
 # Stage 1
 for (n in 1:reps){
 
-rand_ratio = 0.5
+rand_ratio.c = 0.5
   
 for(j in 1:S){
 for (h in 1:T){
@@ -77,13 +77,16 @@ mle.c[i,j]       = sum(Y.c[1:i,j])/sum(nk.c[1:i,j])
 
 }
 
-X1 <- rbeta(100, PostAlpha.c[i, 1], PostBeta.c[i, 1])
-X2 <- rbeta(100, PostAlpha.c[i, 2], PostBeta.c[i, 2])
+if (i > 28){
+
+if (i %% 7 == 0){
+X1 <- rbeta(100, PostAlpha.c[i-28, 1], PostBeta.c[i-28, 1])
+X2 <- rbeta(100, PostAlpha.c[i-28, 2], PostBeta.c[i-28, 2])
 theta <- length(X1[X1>=X2])/100
 thetas.c[n,i] <- theta
 k = i/(K)
 rand_ratio.c <- theta^k / (theta^k + (1-theta)^k)
-rand_ratios.c[i] = rand_ratio
+rand_ratios.c[i] = rand_ratio.c
 
 #making sure samples don't go to 0
 if (rand_ratio.c>UPPER_LIMIT){
@@ -92,7 +95,8 @@ if (rand_ratio.c>UPPER_LIMIT){
 if (rand_ratio.c<LOWER_LIMIT){
   rand_ratio.c = LOWER_LIMIT
 }
-
+}
+}
 if (i %% 10 == 0){
   pat_df <- data.frame(t=rep(1, i*nk_.c), o=rep(0, i*nk_.c))
   pat_df[1:sum(nk.c[1:i,1]), 't'] = 0
@@ -112,35 +116,40 @@ mle_a.c[,,n] = mle.c
 }
 
 
-
 sum(Ya.c)/reps
 
 
 Y_avg.c = matrix(nrow=K, ncol=S)
 nk_avg.c = matrix(nrow=K, ncol=S)
-Y_sd.c = vector(length=S)
-nk_sd.c = vector(length=S)
+Y_sd.c = matrix(nrow=K, ncol=S)
+nk_sd.c = matrix(nrow=K, ncol=S)
 for (j in 1:S){
   nk_avg.c[,j] = apply(nka.c[,j,], 1, mean)
   Y_avg.c[,j] = apply(Ya.c[,j,], 1, mean, na.rm=T)
-  nk_sd.c[j] = sd(nka.c[,j,])
-  Y_sd.c[j] = sd(Ya.c[,j,])
+  nk_sd.c[,j] = apply(nka.c[,j,], 1, sd)
+  Y_sd.c[,j] = apply(Ya.c[,j,], 1, sd, na.rm=T)
 }
-lines(nk_avg.c[seq(10, 100, 10),2]/nk_.c*100, lwd=4, type='b', col='brown')
 
 
-nk_sd
+lines(nk_avg.c[c(2,1:10*10),2]/nk_.c*100, lwd=4, type='b', col='brown')
+arrows(5:11 - 0.05, (nk_avg.c[seq(40, 100, 10),2]- nk_sd.c[c(seq(40, 100, 10)),2])/nk_.c*100,
+       y1 = (nk_avg.c[seq(40, 100, 10),2] + nk_sd.c[c(seq(40, 100, 10)),2])/nk_.c*100,
+       code=3, angle=90, lty=8, col='brown', lwd=2)
 
-sum(nk_avg.c[,1])
-sum(nk_avg.c[,2])
+
+sum(nk_avg.c[1:80,1])
+sum(nk_avg.c[1:80,2])
 
 sum(Y_avg.c[,1])
 sum(Y_avg.c[,2])
 
+nk_sd.c
 
 #deaths at n=6450
-sum(nk_avg.c[1:43,])
-sum(Y_avg.c[1:43,])
+sum(nk_avg.c[1:80,])
+sum(Y_avg.c[1:80,])
+sd(apply(Ya.c[1:80, 1, ] + Ya.c[1:80, 2, ], 2, sum))/(reps ** 0.5)
+
 
 
 conf_sup_avg = apply(conf_sup,1, mean)
@@ -149,9 +158,13 @@ lines(conf_sup_avg)
 
 
 power_avg = apply(conf_sup.c<0.05, 1, mean)
+power_avg = c(0, power_avg)
 points(power_avg, lwd=4)
 lines(power_avg, col = 'brown',lwd=4)
-power_avg
+power_err = apply(conf_sup.c<0.05, 1, sd)/(reps ** 0.5)
+arrows(2:11, power_avg[2:11] - power_err,
+       y1 = power_avg[2:11] + power_err,
+       code=3, angle=90, lty=8, col='brown', lwd=2.5)
 
 plot(nk_avg[,1], ylim = c(0,60), col='red', xlab='Trial completion (%)', ylab='Patients allocated')
 points(nk_avg[,2], col='blue')
@@ -186,11 +199,9 @@ plot(above_theta_avg)
 
 #trial progress bias
 
-mle_avg = vector(length= 10) #vector(length=S)
-mle_sd = vector(length=10)#vector(length=S)
-
-treatment_effect = 0.257 - 0.229
-
+mort_rates = apply(Px.c * Py.c, 2, sum)
+treatment_effect = mort_rates[1] - mort_rates[2]
+treatment_effect
 for (i in 1:10){
   mle_avg[i] = mean(((mle_a.c[i*10,1,] - mle_a.c[i*10,2,])-treatment_effect)/treatment_effect)
   mle_sd[i] = sd(((mle_a.c[i*10,1,] - mle_a.c[i*10,2,])-treatment_effect)/treatment_effect)
@@ -198,16 +209,15 @@ for (i in 1:10){
 
 
 
-upper = mle_avg + 1.96*mle_sd/sqrt(6450)
+upper = mle_avg + 1.96*mle_sd/sqrt(1000)
 mid = mle_avg
-lower = mle_avg - 1.96*mle_sd/sqrt(6450)
+lower = mle_avg - 1.96*mle_sd/sqrt(1000)
 
 points(1:10-0.2, mid, ylim=c(-0.06,0.06), col= 'blue', lwd=6)
 arrows(1:10-0.2, lower, 1:10-0.2, upper, code=3, angle=90, lty=8, col='blue', lwd=3)
 
-legend('bottomleft', legend = c(expression('T'[f]), expression('RMC'[f])),col = c('blue','red'), 
+legend('bottomright', legend = c(expression('T'[f]), expression('RMC'[f])),col = c('blue','red'), 
        lty = c('dashed', 'dashed'), lwd=3)
-abline(v= 4.3, lty='dashed')
 
 
 
@@ -215,17 +225,34 @@ abline(v= 4.3, lty='dashed')
 # end of trial treatment effect bias
 
 
-treatment_effect = 0.257 - 0.229
-mle_t_avg = mean(((mle_a.c[43,1,] - mle_a.c[43,2,])-treatment_effect)/treatment_effect)
-mle_t_sd = sd(((mle_a.c[43,1,] - mle_a.c[43,2,])-treatment_effect)/treatment_effect)
+mort_rates = apply(Px.c * Py.c, 2, sum)
+treatment_effect = mort_rates[1] - mort_rates[2]
+mle_t_avg = mean(((mle_a.c[80,1,] - mle_a.c[80,2,])-treatment_effect)/treatment_effect)
+mle_t_sd = sd(((mle_a.c[80,1,] - mle_a.c[80,2,])-treatment_effect)/treatment_effect)
 
 
-upper = mle_t_avg + 1.96*mle_t_sd/sqrt(6450)
+upper = mle_t_avg + 1.96*mle_t_sd/sqrt(1000)
 mid = mle_t_avg
-lower = mle_t_avg - 1.96*mle_t_sd/sqrt(6450)
+lower = mle_t_avg - 1.96*mle_t_sd/sqrt(1000)
+
 
 points(13.5, mid, col = 'blue', lwd=6)
 arrows(13.5, lower, 13.5, upper, code=3, angle=90, lty=8, col='blue', lwd=2)
+
+
+
+
+
+#mean squared error
+mort_rates = apply(Px.c * Py.c,2,sum)
+true_t_effect = mort_rates[1] - mort_rates[2]
+mse.c = mean((mle_a.c[80,1,] - mle_a.c[80,2,] - true_t_effect)**2)
+mse.c
+
+
+
+
+
 
 #end of trial bias
 

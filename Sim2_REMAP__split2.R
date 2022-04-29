@@ -7,7 +7,7 @@ K     = 100 #number of stages in trial
 S     = 2
 T     = 3
 
-nk_.h   = 150 #patients per stage
+nk_.h   = 80 #patients per stage
 Nx.h    = c(501, 1279, 324) + c(1034, 2604, 683)
 Px.h    = Nx.h/sum(Nx.h)
 nk_.h   = round(nk_.h*Px.h)
@@ -68,7 +68,7 @@ for(i in 2:K){
 
 for (h in 1:T){
 for(j in 1:S){
-  nk.h[i, j,h] = round(nk_.h[h] *rand_ratio.h[j,h])
+  nk.h[i, j,h] = rbinom(1,nk_.h[h], rand_ratio.h[j,h])
   y.h = rbinom(1, round(nk.h[i,j,h]), Py.h[h,j])
 
 Y.h[i,j,h]         = y.h
@@ -77,13 +77,18 @@ PostBeta.h[i,j,h]  = beta.h + sum(nk.h[1:i,j,h]-Y.h[1:i,j,h], na.rm=T)
 postmean.h[i,j,h]  = PostAlpha.h[i,j,h]/(PostAlpha.h[i,j,h]+PostBeta.h[i,j,h])
 mle.h[i,j,h]       = sum(Y.h[1:i,j,h])/sum(nk.h[1:i,j,h])
 
-X.h[,j, h] = rbeta(100, PostAlpha.h[i, j,h], PostBeta.h[i, j,h])
 }
+if (i > 28){
+    
+if (i %% 7 == 0){
 
+for (j in 1:S){
+  X.h[,j, h] = rbeta(100, PostAlpha.h[i-28, j,h], PostBeta.h[i-28, j,h])
+}
 optimum = apply(X.h[,,h], 1, which.min)
 for (j in 1:S){
   prob_optimal.h[j] = mean(optimum == j)
-  pre_ratio.h[j] = sqrt(prob_optimal.h[j]/(sum(nk.h[1:i,j,h])+1))
+  pre_ratio.h[j] = sqrt(prob_optimal.h[j]/(sum(nk.h[1:(i-28),j,h])+1))
 }
 prob_optimals.h[n,,i,h] = prob_optimal.h
 
@@ -99,8 +104,8 @@ if (rand_ratio.h[j]<LOWER_LIMIT){
   rand_ratio.h[j] = LOWER_LIMIT
 }
 }
-
-
+}
+}
 }
   
 if (i %% 10 == 0){
@@ -138,16 +143,20 @@ sum(Ya.h)/reps
 
 nk_avg.h = array(dim=c(K,S,T))
 Y_avg.h = array(dim=c(K,S,T))
+nk_sd.h = array(dim=c(K,S,T))
+Y_sd.h = array(dim=c(K,S,T))
 for (h in 1:T){
   for (j in 1:S){
     nk_avg.h[,j,h] = apply(nka.h[,j,h,], 1, mean)
     Y_avg.h[,j,h] = apply(Ya.h[,j,h,], 1, mean, na.rm=T)
+    nk_sd.h[,j,h] = apply(nka.h[,j,h,], 1, sd)
+    Y_sd.h[,j,h] = apply(Ya.h[,j,h,], 1, sd, na.rm=T)
   }
 }
 
 for (h in 1:T){
-  print(sum(nk_avg.h[,1,h]))
-  print(sum(nk_avg.h[,2,h]))
+  print(sum(nk_avg.h[1:80,1,h]))
+  print(sum(nk_avg.h[1:80,2,h]))
 }
 
 for (h in 1:T){
@@ -157,9 +166,11 @@ for (h in 1:T){
 
 
 #mortality at n=6450
-sum(nk_avg.h[1:43,,])
-sum(Y_avg.h[1:43,,])
-
+sum(nk_avg.h[1:80,,])
+sum(Y_avg.h[1:80,,])
+sd(apply(Ya.h[1:80, 1,1, ] + Ya.h[1:80, 2,1, ] +
+           Ya.h[1:80, 1,2, ] + Ya.h[1:80, 2,2, ] +
+           Ya.h[1:80, 1,3, ] + Ya.h[1:80, 2,3, ], 2, sum))/(reps ** 0.5)
 
 
 
@@ -176,16 +187,6 @@ for (h in 1:T){
 
 sum(Ya)/reps
 
-for (h in 1:T){
-  conf_sup_avg = apply(conf_sup[,h,],1, mean)
-  plot(conf_sup_avg)
-  lines(conf_sup_avg)
-  
-  
-  power_avg = apply(conf_sup[,h,]<0.05, 1, mean)
-  plot(power_avg)
-  lines(power_avg)
-}
 
 treatment_superior = matrix(nrow=K, ncol=T)
 for (h in 1:T){
@@ -254,27 +255,40 @@ text(x=27, y=0.12, labels='subgroup ii')
 text(x=43, y=0.12, labels='subgroup iii')
 
 
-#treatment effect bias at n=6450
+
+
+
+
+#mean squared error
+true_t_effect = Py.h[,1] - Py.h[,2]
+mse.h = apply((mle_a.h[43,1,,] - mle_a.h[43,2,,] - true_t_effect)**2, 1, mean)
+mse.h
+
+
+
+
+
+
+
+#treatment effect bias at n=6400
 treatment_effect = Py.g[,1] - Py.g[,2]
 
 for (h in 1:T){
-  mle_t_avg[h] = mean(((mle_a.h[43,1, h,] - mle_a.h[43,2,h,])- treatment_effect[h])/treatment_effect[h])
-  mle_t_sd[h] = sd(((mle_a.h[43,1, h,] - mle_a.h[43,2,h,])- treatment_effect[h])/treatment_effect[h])
+  mle_t_avg[h] = mean(((mle_a.h[80,1, h,] - mle_a.h[80,2,h,])- treatment_effect[h])/treatment_effect[h])
+  mle_t_sd[h] = sd(((mle_a.h[80,1, h,] - mle_a.h[80,2,h,])- treatment_effect[h])/treatment_effect[h])
 }
 
-sample_size = round(6450*Px.h)
 
 
-upper = mle_t_avg + 1.96*mle_t_sd/sqrt(sample_size)
+upper = mle_t_avg + 1.96*mle_t_sd/sqrt(1000)
 mid = mle_t_avg
-lower = mle_t_avg - 1.96*mle_t_sd/sqrt(sample_size)
+lower = mle_t_avg - 1.96*mle_t_sd/sqrt(1000)
 
 h=1
-plot(2.5+(h-1)*4, mid[h],xlim = c(0,16), ylim = c(0, 0.3),
+plot(2.5+(h-1)*4, mid[h],xlim = c(0,16), ylim = c(-0.1, 0.1),
      col='red', xaxt='n', ylab='Relative Bias', xlab='Patient group', lwd=6)
 for (h in 1:T){
   points(2.5+(h-1)*4, mid[h], col='red', lwd=6)
   arrows(2.5+(h-1)*4, lower[h], 2.5+(h-1)*4, 
          upper[h], code=3, angle=90, lty=8, col='red', lwd=2)
 }
-

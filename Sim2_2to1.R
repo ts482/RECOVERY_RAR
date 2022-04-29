@@ -7,7 +7,7 @@ K     = 100 #number of stages in trial
 S     = 2
 T     = 3
 
-nk_.b   = 150 #patients per stage
+nk_.b   = 80 #patients per stage
 Nx.b    = c(501, 1279, 324) + c(1034, 2604, 683)
 Px.b    = Nx.b/sum(Nx.b)
 Py.b   = matrix(c(0.140, 0.262, 0.414, 0.178, 0.233, 0.293), nrow=3)
@@ -66,7 +66,7 @@ mle.b[1,j]       = sum(Y.b[1,j])/(nk.b[1,j])
 for(i in 2:K){
 
 n_stand = rbinom(1, nk_.b, prob = c(rand_ratio.b[1], rand_ratio.b[2]))
-nk.b[i, ] = c(n_stand, nk_-n_stand)
+nk.b[i, ] = c(n_stand, nk_.b-n_stand)
   
 for(j in 1:S){
   
@@ -109,16 +109,16 @@ sum(Ya.b)/reps
 
 Y_avg.b = matrix(nrow=K, ncol=S)
 nk_avg.b = matrix(nrow=K, ncol=S)
-Y_sd.b = vector(length=S)
-nk_sd.b = vector(length=S)
+Y_sd.b = matrix(nrow=K, ncol=S)
+nk_sd.b = matrix(nrow=K, ncol=S)
 for (j in 1:S){
   nk_avg.b[,j] = apply(nka.b[,j,], 1, mean)
   Y_avg.b[,j] = apply(Ya.b[,j,], 1, mean, na.rm=T)
-  nk_sd.b[j] = sd(nka.b[,j,])
-  Y_sd.b[j] = sd(Ya.b[,j,])
+  nk_sd.b[,j] = apply(nka.b[,j,], 1, sd)
+  Y_sd.b[,j] = apply(Ya.b[,j,], 1, sd, na.rm=T)
 }
-nk_sd.b
-
+  
+  
 sum(nk_avg.b[,1])
 sum(nk_avg.b[,2])
 
@@ -127,10 +127,15 @@ sum(Y_avg.b[,2])
 
 
 #deaths at n=6450
-sum(Y_avg.b[1:43,])
+sum(Y_avg.b[1:80,])
+sd(apply(Ya.b[1:80, 1, ] + Ya.b[1:80, 2, ], 2, sum))/(reps ** 0.5)
 
 
-lines(nk_avg.b[seq(10, 100, 10),2]/nk_.b*100, lwd=4, type='b', col='blue')
+
+lines(nk_avg.b[c(2,1:10*10),2]/nk_.b*100, lwd=4, type='b', col='blue')
+arrows(1:11, (nk_avg.b[c(2,seq(10, 100, 10)),2]- nk_sd.b[c(2,seq(10, 100, 10)),2])/nk_.b*100,
+       y1 = (nk_avg.b[c(2,seq(10, 100, 10)),2] + nk_sd.b[c(2,seq(10, 100, 10)),2])/nk_.b*100,
+       code=3, angle=90, lty=8, col='blue', lwd=2)
 #points(nk_avg[,2]/nk_*100, col='blue')
 #legend("bottomleft",legend = c('no treatment', 'dexamethasone'),col = c("red", "blue"), lwd=4)
 
@@ -145,9 +150,14 @@ lines(conf_sup_avg)
 
 
 power_avg = apply(conf_sup.b<0.05, 1, mean)
+power_avg = c(0, power_avg)
 points(power_avg,lwd=4)
 lines(power_avg, col='red',lwd=4)
-power_avg
+power_err = apply(conf_sup.b<0.05, 1, sd)/(reps ** 0.5)
+arrows(2:11, power_avg[2:11] - power_err,
+       y1 = power_avg[2:11] + power_err,
+       code=3, angle=90, lty=8, col='red', lwd=2.5)
+
 
 treatment_superior = vector(length=K)
 for (i in 1:K){
@@ -195,6 +205,22 @@ lower = (bias_t - 2*mle_t_sd)/(0.257 - 0.229)
 
 points(6, mid ,xlim = c(0,16), ylim = c(lower-1, upper+1), xaxt='n', ylab='Bias', xlab='Algorithm')
 arrows(6, lower, 6, upper, code=3, angle=90, lty=8, )
+
+
+
+
+
+#mean squared error
+mort_rates = apply(Px.b * Py.b,2,sum)
+true_t_effect = mort_rates[1] - mort_rates[2]
+mse.b = mean((mle_a.b[80,1,] - mle_a.b[80,2,] - true_t_effect)**2)
+mse.b
+
+
+
+
+
+
 
 
 #end of trial bias

@@ -7,7 +7,7 @@ K       = 100 #number of stages in trial
 S       = 2
 T       = 3
 
-nk_.a   = 150 #patients per stage
+nk_.a   = 80 #patients per stage
 Nx.a    = c(501, 1279, 324) + c(1034, 2604, 683)
 Px.a    = Nx.a/sum(Nx.a)
 Py.a   = matrix(c(0.140, 0.262, 0.414, 0.178, 0.233, 0.293), nrow=3)
@@ -105,17 +105,15 @@ sum(Ya.a)/reps
 
 Y_avg.a = matrix(nrow=K, ncol=S)
 nk_avg.a = matrix(nrow=K, ncol=S)
-Y_sd.a = vector(length=S)
-nk_sd.a = vector(length=S)
+Y_sd.a = matrix(nrow=K, ncol=S)
+nk_sd.a = matrix(nrow=K, ncol=S)
 for (j in 1:S){
   nk_avg.a[,j] = apply(nka.a[,j,], 1, mean)
   Y_avg.a[,j] = apply(Ya.a[,j,], 1, mean, na.rm=T)
-  nk_sd.a[j] = sd(nka.a[,j,])
-  Y_sd.a[j] = sd(Ya.a[,j,])
+  nk_sd.a[,j] = apply(nka.a[,j,], 1, sd)
+  Y_sd.a[,j] = apply(nka.a[,j,], 1, sd)
 }
 
-tail(nk_avg.a)
-nk_sd.a
 
 sum(nk_avg.a[,1])
 sum(nk_avg.a[,2])
@@ -124,27 +122,34 @@ sum(Y_avg.a[,1])
 sum(Y_avg.a[,2])
 
 #deaths at n=6450
-sum(Y_avg.a[1:43,])
+sum(Y_avg.a[1:80,])
+sd(apply(Ya.a[1:80, 1, ] + Ya.a[1:80, 2, ], 2, sum))/(reps ** 0.5)
 
 
-conf_sup_avg = apply(conf_sup,1, mean)
-plot(conf_sup_avg)
-lines(conf_sup_avg)
 
 
 power_avg = apply(conf_sup.a<0.05, 1, mean)
-plot(power_avg, ylim=c(0,1), lwd=4, xaxt = 'n', xlab = 'Trial Progress(%)', ylab= 'Power of study')
-axis(1, at = 1:10, labels = seq(10,100, 10))
+power_avg = c(0, power_avg)
+plot(power_avg, ylim=c(0,1), lwd=4, xaxt = 'n', xlim = c(1,11),
+     xlab = 'Trial Progress(%)', ylab= 'Power of study')
+axis(1, seq(1,11,2), labels = seq(0, 125,25))
 lines(power_avg, col='blue',lwd=4)
+power_err = apply(conf_sup.a<0.05, 1, sd)/(reps ** 0.5)
+arrows(2:11, power_avg[2:11] - power_err,
+       y1 = power_avg[2:11] + power_err,
+       code=3, angle=90, lty=8, col='blue', lwd=2.5)
 
 
 
-plot(nk_avg.a[seq(10, 100, 10),2]/nk_.a*100, ylim = c(0,100), lwd=4, col='red', type = 'b',
+plot(nk_avg.a[c(2,seq(10, 100, 10)),2]/nk_.a*100, xlim = c(1,11), ylim = c(0,100), lwd=4, col='red', type = 'b',
      xlab='Trial progress(%)', ylab='Proportion of patients receiving dexamethasone(%)', axes=FALSE)
-axis(1, 1:10, labels = 1:10*10)
+axis(1, seq(1,11,2), labels = seq(0, 125,25))
 axis(2, seq(0, 100, 25), labels = seq(0, 100, 25))
+arrows(1:11, (nk_avg.a[c(2,seq(10, 100, 10)),2]- nk_sd.a[c(2,seq(10, 100, 10)),2])/nk_.a*100,
+       y1 = (nk_avg.a[c(2,seq(10, 100, 10)),2] + nk_sd.a[c(2,seq(10, 100, 10)),2])/nk_.a*100,
+       code=3, angle=90, lty=8, col='red', lwd=2)
 #points(nk_avg[,2], col='blue')
-legend("bottomleft",legend = c('no treatment', 'dexamethasone'),col = c("red", "blue"), lwd=4)
+#legend("bottomleft",legend = c('no treatment', 'dexamethasone'),col = c("red", "blue"), lwd=4)
 
 sum(Ya)/reps
 
@@ -213,6 +218,18 @@ lower = (bias_t - 2*mle_t_sd)/(0.257 - 0.229)
 plot(2, mid ,xlim = c(0,16), ylim = c(lower-1, upper+1), xaxt='n', 
      ylab='Bias (% of treatment effect)', xlab='Algorithm')
 arrows(2, lower, 2, upper, code=3, angle=90, lty=8, )
+
+
+
+#mean squared error
+mort_rates = apply(Px.a * Py.a,2,sum)
+true_t_effect = mort_rates[1] - mort_rates[2]
+mse.a = mean((mle_a.a[80,1,] - mle_a.a[80,2,] - true_t_effect)**2)
+mse.a
+
+
+
+
 
 
 # end of trial bias
